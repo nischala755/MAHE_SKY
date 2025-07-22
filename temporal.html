@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporal Drift Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        .header {
+            margin-bottom: 2rem;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .header-title h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-subtitle {
+            color: #cbd5e1;
+            font-size: 1.125rem;
+        }
+
+        .icon {
+            width: 2rem;
+            height: 2rem;
+            color: #a855f7;
+        }
+
+        /* Control Panel */
+        .control-panel {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(12px);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            border: 1px solid #475569;
+            margin-bottom: 2rem;
+        }
+
+        .control-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #cbd5e1;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            color: white;
+            font-size: 0.875rem;
+        }
+
+        .form-input::placeholder {
+            color: #94a3b8;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #7c3aed, #db2777);
+            transform: translateY(-1px);
+        }
+
+        /* Toggle Switch */
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toggle {
+            width: 3rem;
+            height: 1.5rem;
+            border-radius: 1rem;
+            background: #475569;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle.active {
+            background: #10b981;
+        }
+
+        .toggle-slider {
+            width: 1rem;
+            height: 1rem;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 0.25rem;
+            left: 0.25rem;
+            transition: transform 0.2s;
+        }
+
+        .toggle.active .toggle-slider {
+            transform: translateX(1.5rem);
+        }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Content List */
+        .content-list {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(12px);
+            border-radius: 0.75rem;
+            border: 1px solid #475569;
+            padding: 1.5rem;
+            height: fit-content;
+        }
+
+        .content-list h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .content-item {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid #475569;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .content-item:hover {
+            background: rgba(51, 65, 85, 0.5);
+        }
+
+        .content-item.selected {
+            border-color: #8b5cf6;
+            background: rgba(51, 65, 85, 0.5);
+        }
+
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 0.5rem;
+        }
+
+        .content-title {
+            font-weight: 600;
+            color: white;
+            font-size: 0.875rem;
+        }
+
+        .content-url {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-bottom: 0.75rem;
+            word-break: break-all;
+        }
+
+        .content-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .drift-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .drift-dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+        }
+
+        .version-count {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .btn-secondary {
+            width: 100%;
+            background: #334155;
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn-danger {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        .btn-danger:hover {
+            color: #ef4444;
+        }
+
+        /* Graph Section */
+        .graph-section {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(12px);
+            border-radius: 0.75rem;
+            border: 1px solid #475569;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .graph-section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .chart-container {
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            height: 350px;
+        }
+
+        /* Version History */
+        .version-history {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(12px);
+            border-radius: 0.75rem;
+            border: 1px solid #475569;
+            padding: 1.5rem;
+        }
+
+        .version-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .version-item {
+            border: 1px solid #475569;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .version-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .version-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .version-badge {
+            background: rgba(139, 92, 246, 0.2);
+            color: #c4b5fd;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+
+        .version-hash {
+            color: #94a3b8;
+            font-family: monospace;
+            font-size: 0.75rem;
+        }
+
+        .version-timestamp {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+        }
+
+        .version-changes {
+            margin-bottom: 0.5rem;
+        }
+
+        .changes-title {
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            margin-bottom: 0.25rem;
+        }
+
+        .changes-list {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            padding-left: 1rem;
+        }
+
+        .version-content {
+            font-size: 0.75rem;
+            color: #e2e8f0;
+            background: rgba(51, 65, 85, 0.5);
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(12px);
+            border: 1px solid #475569;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: #cbd5e1;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        /* Utility classes */
+        .text-green { color: #10b981; }
+        .text-yellow { color: #f59e0b; }
+        .text-red { color: #ef4444; }
+        .text-blue { color: #3b82f6; }
+        .text-purple { color: #a855f7; }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-title">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12,6 12,12 16,14"></polyline>
+                </svg>
+                <h1>Temporal Drift Tracker</h1>
+            </div>
+            <p class="header-subtitle">Monitor content mutations and track truth drift over time</p>
+        </header>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="control-form">
+                <div class="form-group">
+                    <label class="form-label">Content URL</label>
+                    <input type="url" id="newUrl" class="form-input" placeholder="https://example.com/content">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Content Title</label>
+                    <input type="text" id="newTitle" class="form-input" placeholder="Content title">
+                </div>
+                <button onclick="addNewContent()" class="btn-primary">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Track Content
+                </button>
+                <div class="toggle-group">
+                    <span class="form-label">Auto-tracking:</span>
+                    <div id="trackingToggle" class="toggle active" onclick="toggleTracking()">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Content List -->
+            <div class="content-list">
+                <h2>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    Tracked Content
+                </h2>
+                <div id="contentList"></div>
+            </div>
+
+            <!-- Graph and History -->
+            <div>
+                <!-- Truth Drift Graph -->
+                <div class="graph-section">
+                    <h2>
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        Truth Drift Graph - <span id="selectedTitle"></span>
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="driftChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Version History -->
+                <div class="version-history">
+                    <h3>
+                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <line x1="4" y1="9" x2="20" y2="9"></line>
+                            <line x1="4" y1="15" x2="20" y2="15"></line>
+                            <line x1="10" y1="3" x2="8" y2="21"></line>
+                            <line x1="16" y1="3" x2="14" y2="21"></line>
+                        </svg>
+                        Version History
+                    </h3>
+                    <div id="versionList" class="version-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <svg class="text-green" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12,6 12,12 16,14"></polyline>
+                    </svg>
+                    <span class="stat-label">Total Tracked</span>
+                </div>
+                <div class="stat-value" id="totalTracked">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <svg class="text-blue" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <line x1="4" y1="9" x2="20" y2="9"></line>
+                        <line x1="4" y1="15" x2="20" y2="15"></line>
+                        <line x1="10" y1="3" x2="8" y2="21"></line>
+                        <line x1="16" y1="3" x2="14" y2="21"></line>
+                    </svg>
+                    <span class="stat-label">Total Versions</span>
+                </div>
+                <div class="stat-value" id="totalVersions">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <svg class="text-yellow" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <span class="stat-label">High Drift Items</span>
+                </div>
+                <div class="stat-value" id="highDriftItems">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-header">
+                    <svg class="text-purple" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span class="stat-label">Avg Truth Score</span>
+                </div>
+                <div class="stat-value" id="avgTruthScore">0%</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let contentItems = [
+            {
+                id: 1,
+                url: 'https://example.com/article-1',
+                title: 'Climate Change Report',
+                versions: [
+                    { timestamp: '2024-01-15T10:00:00Z', hash: 'a1b2c3d4', changes: [], score: 1.0, content: 'Original climate data shows 2°C warming' },
+                    { timestamp: '2024-02-01T14:30:00Z', hash: 'e5f6g7h8', changes: ['Title modified', 'Temperature data updated'], score: 0.85, content: 'Updated climate data shows 1.8°C warming' },
+                    { timestamp: '2024-02-15T09:15:00Z', hash: 'i9j0k1l2', changes: ['Methodology section added'], score: 0.82, content: 'Updated climate data shows 1.8°C warming with new methodology' },
+                    { timestamp: '2024-03-01T16:45:00Z', hash: 'm3n4o5p6', changes: ['Data source changed', 'Conclusion altered'], score: 0.65, content: 'Revised climate data shows 1.5°C warming from alternative sources' }
+                ]
+            },
+            {
+                id: 2,
+                url: 'https://news.com/breaking-story',
+                title: 'Election Results',
+                versions: [
+                    { timestamp: '2024-01-10T20:00:00Z', hash: 'q7r8s9t0', changes: [], score: 1.0, content: 'Candidate A leads with 52% of votes counted' },
+                    { timestamp: '2024-01-10T21:30:00Z', hash: 'u1v2w3x4', changes: ['Vote count updated'], score: 0.95, content: 'Candidate A leads with 48% of votes counted (75% reporting)' },
+                    { timestamp: '2024-01-10T23:15:00Z', hash: 'y5z6a7b8', changes: ['Final results posted'], score: 0.92, content: 'Candidate B wins with 51% of final vote count' },
+                    { timestamp: '2024-01-11T08:00:00Z', hash: 'c9d0e1f2', changes: ['Headline changed', 'Analysis added'], score: 0.88, content: 'Candidate B declared winner after close race, legal challenges expected' }
+                ]
+            }
+        ];
+
+        let selectedItem = contentItems[0];
+        let isTracking = true;
+        let driftChart = null;
+
+        // Utility functions
+        function calculateDriftScore(versions) {
+            if (versions.length <= 1) return 1.0;
+            const changeCount = versions.reduce((acc, v) => acc + v.changes.length, 0);
+            return Math.max(0.1, 1.0 - (changeCount * 0.05));
+        }
+
+        function getDriftColor(score) {
+            if (score >= 0.8) return '#10b981';
+            if (score >= 0.6) return '#f59e0b';
+            return '#ef4444';
+        }
+
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function generateRandomHash() {
+            return Math.random().toString(36).substr(2, 8);
+        }
+
+        // UI Update functions
+        function updateContentList() {
+            const contentList = document.getElementById('contentList');
+            contentList.innerHTML = '';
+
+            contentItems.forEach(item => {
+                const driftScore = calculateDriftScore(item.versions);
+                const isSelected = selectedItem.id === item.id;
+
+                const itemElement = document.createElement('div');
+                itemElement.className = `content-item ${isSelected ? 'selected' : ''}`;
+                itemElement.onclick = () => selectContent(item);
+
+                itemElement.innerHTML = `
+                    <div class="content-header">
+                        <h3 class="content-title">${item.title}</h3>
+                        <button class="btn-danger" onclick="removeContent(${item.id}); event.stopPropagation();">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="content-url">${item.url}</p>
+                    <div class="content-stats">
+                        <div class="drift-indicator">
+                            <div class="drift-dot" style="background-color: ${getDriftColor(driftScore)}"></div>
+                            <span>Drift: ${(driftScore * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="version-count">${item.versions.length} versions</div>
+                    </div>
+                    <button class="btn-secondary" onclick="simulateNewVersion(${item.id}); event.stopPropagation();">
+                        Simulate Update
+                    </button>
+                `;
+
+                contentList.appendChild(itemElement);
+            });
+        }
+
+        function updateDriftChart() {
+            const ctx = document.getElementById('driftChart').getContext('2d');
+            
+            if (driftChart) {
+                driftChart.destroy();
+            }
+
+            const data = selectedItem.versions.map((version, index) => ({
+                x: index + 1,
+                y: version.score * 100
+            }));
+
+            driftChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Truth Score (%)',
+                        data: data,
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#8b5cf6',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#cbd5e1'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Version',
+                                color: '#cbd5e1'
+                            },
+                            ticks: {
+                                color: '#94a3b8',
+                                stepSize: 1
+                            },
+                            grid: {
+                                color: '#475569'
+                            }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Truth Score (%)',
+                                color: '#cbd5e1'
+                            },
+                            ticks: {
+                                color: '#94a3b8'
+                            },
+                            grid: {
+                                color: '#475569'
+                            }
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('selectedTitle').textContent = selectedItem.title;
+        }
+
+        function updateVersionHistory() {
+            const versionList = document.getElementById('versionList');
+            versionList.innerHTML = '';
+
+            selectedItem.versions.forEach((version, index) => {
+                const versionElement = document.createElement('div');
+                versionElement.className = 'version-item';
+
+                const changesHtml = version.changes.length > 0 ? `
+                    <div class="version-changes">
+                        <p class="changes-title">Changes:</p>
+                        <ul class="changes-list">
+                            ${version.changes.map(change => `<li>${change}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : '';
+
+                versionElement.innerHTML = `
+                    <div class="version-header">
+                        <div class="version-info">
+                            <span class="version-badge">v${index + 1}</span>
+                            <span class="version-hash">${version.hash}</span>
+                        </div>
+                        <div class="drift-indicator">
+                            <div class="drift-dot" style="background-color: ${getDriftColor(version.score)}"></div>
+                            <span>${(version.score * 100).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                    <p class="version-timestamp">${formatTimestamp(version.timestamp)}</p>
+                    ${changesHtml}
+                    <p class="version-content">${version.content}</p>
+                `;
+
+                versionList.appendChild(versionElement);
+            });
+        }
+
+        function updateStats() {
+            const totalTracked = contentItems.length;
+            const totalVersions = contentItems.reduce((acc, item) => acc + item.versions.length, 0);
+            const highDriftItems = contentItems.filter(item => calculateDriftScore(item.versions) < 0.6).length;
+            const avgTruthScore = totalTracked > 0 ? 
+                (contentItems.reduce((acc, item) => acc + calculateDriftScore(item.versions), 0) / totalTracked * 100) : 0;
+
+            document.getElementById('totalTracked').textContent = totalTracked;
+            document.getElementById('totalVersions').textContent = totalVersions;
+            document.getElementById('highDriftItems').textContent = highDriftItems;
+            document.getElementById('avgTruthScore').textContent = `${avgTruthScore.toFixed(0)}%`;
+        }
+
+        // Event handlers
+        function selectContent(item) {
+            selectedItem = item;
+            updateContentList();
+            updateDriftChart();
+            updateVersionHistory();
+        }
+
+        function addNewContent() {
+            const urlInput = document.getElementById('newUrl');
+            const titleInput = document.getElementById('newTitle');
+            
+            const url = urlInput.value.trim();
+            const title = titleInput.value.trim();
+
+            if (!url || !title) {
+                alert('Please enter both URL and title');
+                return;
+            }
+
+            const newContent = {
+                id: Date.now(),
+                url: url,
+                title: title,
+                versions: [{
+                    timestamp: new Date().toISOString(),
+                    hash: generateRandomHash(),
+                    changes: [],
+                    score: 1.0,
+                    content: `Initial content tracked for ${title}`
+                }]
+            };
+
+            contentItems.push(newContent);
+            selectedItem = newContent;
+            
+            urlInput.value = '';
+            titleInput.value = '';
+            
+            updateAll();
+        }
+
+        function removeContent(id) {
+            contentItems = contentItems.filter(item => item.id !== id);
+            
+            if (selectedItem.id === id) {
+                selectedItem = contentItems[0] || { id: 0, title: 'No content', versions: [], url: '' };
+            }
+            
+            updateAll();
+        }
+
+        function simulateNewVersion(itemId) {
+            const mockChanges = [
+                ['Text updated', 'Image replaced'],
+                ['Caption modified'],
+                ['Source attribution changed'],
+                ['Headline altered', 'Content restructured'],
+                ['Audio transcript updated'],
+                ['Metadata changed'],
+                ['Author byline updated'],
+                ['Publication date modified'],
+                ['Social media tags altered'],
+                ['SEO metadata changed']
+            ];
+
+            contentItems = contentItems.map(item => {
+                if (item.id === itemId) {
+                    const changes = mockChanges[Math.floor(Math.random() * mockChanges.length)];
+                    const lastScore = item.versions[item.versions.length - 1]?.score || 1.0;
+                    const newScore = Math.max(0.1, lastScore - 0.05 - Math.random() * 0.1);
+                    
+                    const newVersion = {
+                        timestamp: new Date().toISOString(),
+                        hash: generateRandomHash(),
+                        changes: changes,
+                        score: newScore,
+                        content: `Updated content with ${changes.join(', ').toLowerCase()}`
+                    };
+
+                    return {
+                        ...item,
+                        versions: [...item.versions, newVersion]
+                    };
+                }
+                return item;
+            });
+
+            // Update selected item if it was the one modified
+            if (selectedItem.id === itemId) {
+                selectedItem = contentItems.find(item => item.id === itemId);
+            }
+
+            updateAll();
+        }
+
+        function toggleTracking() {
+            isTracking = !isTracking;
+            const toggle = document.getElementById('trackingToggle');
+            
+            if (isTracking) {
+                toggle.classList.add('active');
+            } else {
+                toggle.classList.remove('active');
+            }
+        }
+
+        function updateAll() {
+            updateContentList();
+            updateDriftChart();
+            updateVersionHistory();
+            updateStats();
+        }
+
+        // Initialize the application
+        function init() {
+            updateAll();
+            
+            // Add enter key listeners to input fields
+            document.getElementById('newUrl').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addNewContent();
+                }
+            });
+            
+            document.getElementById('newTitle').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addNewContent();
+                }
+            });
+
+            // Auto-simulate updates every 30 seconds if tracking is enabled
+            setInterval(() => {
+                if (isTracking && contentItems.length > 0 && Math.random() > 0.7) {
+                    const randomItem = contentItems[Math.floor(Math.random() * contentItems.length)];
+                    simulateNewVersion(randomItem.id);
+                }
+            }, 30000);
+        }
+
+        // Start the application when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
