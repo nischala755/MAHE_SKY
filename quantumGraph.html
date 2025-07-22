@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Graph Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #1e293b 100%);
+            min-height: 100vh;
+        }
+        .gradient-text {
+            background: linear-gradient(45deg, #06b6d4, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .glass {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+    </style>
+</head>
+<body class="text-white">
+    <div id="app" class="w-full max-w-7xl mx-auto p-6">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold gradient-text mb-2">🔬 Quantum Graph Analyzer</h1>
+            <p class="text-slate-300">Misinformation Spread Detection & Super-Spreader Analysis</p>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="glass rounded-lg p-4">
+                <h3 class="font-semibold mb-2">🎮 Simulation Control</h3>
+                <div class="space-y-2">
+                    <button id="playBtn" class="w-full px-3 py-2 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors">
+                        Start Spread
+                    </button>
+                    <button id="resetBtn" class="w-full px-3 py-2 bg-slate-600 hover:bg-slate-700 rounded-md font-medium transition-colors">
+                        🔄 Reset
+                    </button>
+                    <button id="newGraphBtn" class="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-md font-medium transition-colors">
+                        New Graph
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass rounded-lg p-4">
+                <h3 class="font-semibold mb-2">⚙️ Settings</h3>
+                <div class="space-y-2">
+                    <label class="text-sm text-slate-300">Speed (ms)</label>
+                    <input type="range" id="speedSlider" min="100" max="2000" step="100" value="500" class="w-full">
+                    <div class="text-xs text-slate-400">Step: <span id="stepCounter">0</span></div>
+                </div>
+            </div>
+
+            <div class="glass rounded-lg p-4">
+                <h3 class="font-semibold mb-2">⚡ Super-Spreaders</h3>
+                <div class="space-y-1 text-sm">
+                    <div>Count: <span id="superSpreadersCount" class="text-yellow-400">0</span></div>
+                    <div class="text-xs text-slate-300">High influence + centrality nodes</div>
+                    <div id="superSpreadersList" class="flex flex-wrap gap-1"></div>
+                </div>
+            </div>
+
+            <div class="glass rounded-lg p-4">
+                <h3 class="font-semibold mb-2">⚠️ Danger Analysis</h3>
+                <div id="dangerAnalysis" class="space-y-1 text-sm">
+                    <!-- Community danger levels will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Visualization -->
+        <div class="glass rounded-lg p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Network Visualization</h2>
+                <div class="text-sm text-slate-300">
+                    🟡 Super-spreaders | 🔴 High misinformation | 🟢 Low misinformation
+                </div>
+            </div>
+            <div class="w-full overflow-auto">
+                <svg id="networkSvg" width="800" height="500" class="border border-slate-600 rounded-lg" style="background: rgba(15, 23, 42, 0.5);">
+                </svg>
+            </div>
+        </div>
+
+        <!-- Analysis Results -->
+        <div class="glass rounded-lg p-6 mb-6">
+            <h3 class="text-xl font-bold mb-4">📊 Network Analysis Results</h3>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="text-center">
+                    <div id="totalNodes" class="text-2xl font-bold text-cyan-400">0</div>
+                    <div class="text-sm text-slate-300">Total Nodes</div>
+                </div>
+                <div class="text-center">
+                    <div id="totalLinks" class="text-2xl font-bold text-green-400">0</div>
+                    <div class="text-sm text-slate-300">Total Links</div>
+                </div>
+                <div class="text-center">
+                    <div id="totalCommunities" class="text-2xl font-bold text-purple-400">0</div>
+                    <div class="text-sm text-slate-300">Communities</div>
+                </div>
+                <div class="text-center">
+                    <div id="totalSuperSpreaders" class="text-2xl font-bold text-yellow-400">0</div>
+                    <div class="text-sm text-slate-300">Super-spreaders</div>
+                </div>
+                <div class="text-center">
+                    <div id="avgCentrality" class="text-2xl font-bold text-orange-400">0</div>
+                    <div class="text-sm text-slate-300">Avg Centrality</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="glass rounded-lg p-4">
+            <h4 class="font-semibold mb-2">Legend & Instructions</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-300">
+                <div>
+                    <strong>Super-spreaders (⚡):</strong> Nodes with high centrality scores and influence levels that can rapidly amplify misinformation across the network.
+                </div>
+                <div>
+                    <strong>Communities:</strong> Detected clusters of densely connected nodes. Colored backgrounds show community boundaries and danger levels.
+                </div>
+                <div>
+                    <strong>Misinformation Spread:</strong> Watch how false information propagates through connections, with super-spreaders acting as amplification points.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class QuantumGraphAnalyzer {
+            constructor() {
+                this.graph = null;
+                this.communities = [];
+                this.superSpreaders = [];
+                this.misinformationLevels = {};
+                this.isRunning = false;
+                this.currentStep = 0;
+                this.simulationSpeed = 500;
+                this.animationInterval = null;
+                
+                this.init();
+                this.setupEventListeners();
+                this.generateGraph();
+            }
+
+            init() {
+                this.svg = d3.select('#networkSvg');
+                this.communityColors = d3.scaleOrdinal()
+                    .domain([0, 1, 2, 3, 4])
+                    .range(['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57']);
+
+                this.misinformationColor = d3.scaleLinear()
+                    .domain([0, 0.5, 1])
+                    .range(['#2ECC71', '#F39C12', '#E74C3C']);
+            }
+
+            setupEventListeners() {
+                document.getElementById('playBtn').addEventListener('click', () => this.toggleSimulation());
+                document.getElementById('resetBtn').addEventListener('click', () => this.resetSimulation());
+                document.getElementById('newGraphBtn').addEventListener('click', () => this.generateGraph());
+                document.getElementById('speedSlider').addEventListener('input', (e) => {
+                    this.simulationSpeed = parseInt(e.target.value);
+                });
+            }
+
+            generateGraph() {
+                const nodes = [];
+                const links = [];
+                const numNodes = 50;
+                const numCommunities = 5;
+                
+                // Create nodes with community assignments
+                for (let i = 0; i < numNodes; i++) {
+                    const community = Math.floor(i / (numNodes / numCommunities));
+                    nodes.push({
+                        id: i,
+                        community: community,
+                        influence: Math.random() * 0.8 + 0.2,
+                        misinformationLevel: 0,
+                        isSuperSpreader: false,
+                        x: Math.random() * 600 + 100,
+                        y: Math.random() * 400 + 100
+                    });
+                }
+
+                // Create links with community bias
+                for (let i = 0; i < numNodes; i++) {
+                    const numConnections = Math.floor(Math.random() * 6) + 2;
+                    for (let j = 0; j < numConnections; j++) {
+                        let targetId;
+                        if (Math.random() < 0.7) {
+                            const sameCommunityNodes = nodes.filter(n => n.community === nodes[i].community && n.id !== i);
+                            if (sameCommunityNodes.length > 0) {
+                                targetId = sameCommunityNodes[Math.floor(Math.random() * sameCommunityNodes.length)].id;
+                            } else {
+                                targetId = Math.floor(Math.random() * numNodes);
+                            }
+                        } else {
+                            targetId = Math.floor(Math.random() * numNodes);
+                        }
+                        
+                        if (targetId !== i && !links.find(l => 
+                            (l.source === i && l.target === targetId) || 
+                            (l.source === targetId && l.target === i)
+                        )) {
+                            links.push({
+                                source: i,
+                                target: targetId,
+                                strength: Math.random() * 0.5 + 0.5
+                            });
+                        }
+                    }
+                }
+
+                this.graph = { nodes, links };
+                this.analyzeGraph();
+                this.resetSimulation();
+            }
+
+            analyzeGraph() {
+                const centrality = this.calculateCentrality();
+                this.communities = this.detectCommunities();
+                this.superSpreaders = this.identifySuperSpreaders(centrality);
+                
+                // Mark super-spreaders in graph
+                this.graph.nodes.forEach(node => {
+                    node.isSuperSpreader = this.superSpreaders.find(s => s.id === node.id) !== undefined;
+                });
+
+                this.updateAnalysisDisplay();
+                this.renderGraph();
+            }
+
+            calculateCentrality() {
+                const centrality = {};
+                this.graph.nodes.forEach(node => {
+                    const degree = this.graph.links.filter(link => 
+                        link.source === node.id || link.target === node.id
+                    ).length;
+                    centrality[node.id] = degree;
+                });
+                return centrality;
+            }
+
+            detectCommunities() {
+                const communities = [];
+                for (let i = 0; i < 5; i++) {
+                    const communityNodes = this.graph.nodes.filter(n => n.community === i);
+                    if (communityNodes.length > 0) {
+                        communities.push({
+                            id: i,
+                            nodes: communityNodes.map(n => n.id),
+                            dangerLevel: Math.random() * 0.8 + 0.2,
+                            misinformationRate: Math.random() * 0.6 + 0.1
+                        });
+                    }
+                }
+                return communities;
+            }
+
+            identifySuperSpreaders(centrality) {
+                const threshold = d3.quantile(Object.values(centrality), 0.8);
+                return this.graph.nodes.filter(node => 
+                    centrality[node.id] >= threshold && node.influence > 0.6
+                ).map(node => ({
+                    ...node,
+                    centralityScore: centrality[node.id],
+                    spreadingPower: centrality[node.id] * node.influence
+                }));
+            }
+
+            simulateSpread() {
+                if (this.currentStep === 0) {
+                    // Initialize with random misinformation sources
+                    const initialSources = Math.floor(Math.random() * 3) + 2;
+                    this.misinformationLevels = {};
+                    for (let i = 0; i < initialSources; i++) {
+                        const randomNode = Math.floor(Math.random() * this.graph.nodes.length);
+                        this.misinformationLevels[randomNode] = 1.0;
+                    }
+                } else {
+                    // Spread misinformation through network
+                    const newLevels = { ...this.misinformationLevels };
+                    
+                    this.graph.nodes.forEach(node => {
+                        if (!newLevels[node.id]) {
+                            newLevels[node.id] = 0;
+                        }
+                        
+                        const connectedLinks = this.graph.links.filter(link => 
+                            link.source === node.id || link.target === node.id
+                        );
+                        
+                        let totalInfluence = 0;
+                        connectedLinks.forEach(link => {
+                            const otherId = link.source === node.id ? link.target : link.source;
+                            const otherLevel = newLevels[otherId] || 0;
+                            totalInfluence += otherLevel * link.strength * 0.3;
+                        });
+                        
+                        const isSuperSpreader = this.superSpreaders.find(s => s.id === node.id);
+                        const spreadMultiplier = isSuperSpreader ? 2.5 : 1.0;
+                        
+                        newLevels[node.id] = Math.min(1.0, 
+                            newLevels[node.id] + totalInfluence * spreadMultiplier
+                        );
+                    });
+                    
+                    this.misinformationLevels = newLevels;
+                }
+                
+                this.currentStep++;
+                document.getElementById('stepCounter').textContent = this.currentStep;
+                this.renderGraph();
+            }
+
+            toggleSimulation() {
+                this.isRunning = !this.isRunning;
+                const btn = document.getElementById('playBtn');
+                
+                if (this.isRunning) {
+                    btn.textContent = 'Pause Spread';
+                    btn.className = 'w-full px-3 py-2 bg-red-600 hover:bg-red-700 rounded-md font-medium transition-colors';
+                    this.animationInterval = setInterval(() => {
+                        this.simulateSpread();
+                    }, this.simulationSpeed);
+                } else {
+                    btn.textContent = 'Start Spread';
+                    btn.className = 'w-full px-3 py-2 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors';
+                    clearInterval(this.animationInterval);
+                }
+            }
+
+            resetSimulation() {
+                this.isRunning = false;
+                this.currentStep = 0;
+                this.misinformationLevels = {};
+                
+                clearInterval(this.animationInterval);
+                const btn = document.getElementById('playBtn');
+                btn.textContent = 'Start Spread';
+                btn.className = 'w-full px-3 py-2 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors';
+                
+                document.getElementById('stepCounter').textContent = '0';
+                this.renderGraph();
+            }
+
+            renderGraph() {
+                this.svg.selectAll("*").remove();
+
+                // Draw community backgrounds
+                this.communities.forEach(community => {
+                    const communityNodes = this.graph.nodes.filter(n => n.community === community.id);
+                    if (communityNodes.length === 0) return;
+
+                    const hull = d3.polygonHull(communityNodes.map(n => [n.x, n.y]));
+                    if (hull) {
+                        this.svg.append("path")
+                            .datum(hull)
+                            .attr("d", d3.line().curve(d3.curveCardinalClosed.tension(0.85)))
+                            .attr("fill", this.communityColors(community.id))
+                            .attr("fill-opacity", 0.1 + community.dangerLevel * 0.2)
+                            .attr("stroke", this.communityColors(community.id))
+                            .attr("stroke-width", 2)
+                            .attr("stroke-opacity", 0.5);
+                    }
+                });
+
+                // Draw links
+                this.svg.selectAll(".link")
+                    .data(this.graph.links)
+                    .enter()
+                    .append("line")
+                    .attr("class", "link")
+                    .attr("x1", d => this.graph.nodes[d.source].x)
+                    .attr("y1", d => this.graph.nodes[d.source].y)
+                    .attr("x2", d => this.graph.nodes[d.target].x)
+                    .attr("y2", d => this.graph.nodes[d.target].y)
+                    .attr("stroke", "#999")
+                    .attr("stroke-opacity", 0.4)
+                    .attr("stroke-width", d => d.strength * 2);
+
+                // Draw nodes
+                const nodes = this.svg.selectAll(".node")
+                    .data(this.graph.nodes)
+                    .enter()
+                    .append("g")
+                    .attr("class", "node")
+                    .attr("transform", d => `translate(${d.x}, ${d.y})`);
+
+                nodes.append("circle")
+                    .attr("r", d => d.isSuperSpreader ? 12 : 8)
+                    .attr("fill", d => {
+                        const misinfoLevel = this.misinformationLevels[d.id] || 0;
+                        return misinfoLevel > 0 ? this.misinformationColor(misinfoLevel) : this.communityColors(d.community);
+                    })
+                    .attr("stroke", d => d.isSuperSpreader ? "#FFD700" : "#fff")
+                    .attr("stroke-width", d => d.isSuperSpreader ? 3 : 2);
+
+                // Super-spreader indicators
+                nodes.filter(d => d.isSuperSpreader)
+                    .append("text")
+                    .attr("text-anchor", "middle")
+                    .attr("dy", 4)
+                    .attr("font-size", 10)
+                    .attr("fill", "white")
+                    .text("⚡");
+
+                // Node labels
+                nodes.append("text")
+                    .attr("dx", 15)
+                    .attr("dy", 4)
+                    .attr("font-size", 10)
+                    .attr("fill", "#fff")
+                    .text(d => `N${d.id}`);
+            }
+
+            updateAnalysisDisplay() {
+                document.getElementById('totalNodes').textContent = this.graph.nodes.length;
+                document.getElementById('totalLinks').textContent = this.graph.links.length;
+                document.getElementById('totalCommunities').textContent = this.communities.length;
+                document.getElementById('totalSuperSpreaders').textContent = this.superSpreaders.length;
+                document.getElementById('superSpreadersCount').textContent = this.superSpreaders.length;
+
+                const centrality = this.calculateCentrality();
+                const avgCentrality = Object.values(centrality).reduce((a, b) => a + b, 0) / Object.values(centrality).length;
+                document.getElementById('avgCentrality').textContent = avgCentrality.toFixed(1);
+
+                // Update super-spreaders list
+                const superSpreadersList = document.getElementById('superSpreadersList');
+                superSpreadersList.innerHTML = '';
+                this.superSpreaders.slice(0, 5).forEach(node => {
+                    const span = document.createElement('span');
+                    span.className = 'px-2 py-1 bg-yellow-600 bg-opacity-20 rounded text-xs';
+                    span.textContent = `N${node.id}`;
+                    superSpreadersList.appendChild(span);
+                });
+
+                // Update danger analysis
+                const dangerAnalysis = document.getElementById('dangerAnalysis');
+                dangerAnalysis.innerHTML = '';
+                this.communities.forEach(community => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between';
+                    
+                    const dangerClass = community.dangerLevel > 0.6 ? 'bg-red-600 bg-opacity-20 text-red-300' :
+                                      community.dangerLevel > 0.4 ? 'bg-yellow-600 bg-opacity-20 text-yellow-300' :
+                                      'bg-green-600 bg-opacity-20 text-green-300';
+                    
+                    div.innerHTML = `
+                        <span>C${community.id}</span>
+                        <span class="px-1 rounded text-xs ${dangerClass}">
+                            ${(community.dangerLevel * 100).toFixed(0)}%
+                        </span>
+                    `;
+                    dangerAnalysis.appendChild(div);
+                });
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            new QuantumGraphAnalyzer();
+        });
+    </script>
+</body>
+</html>
